@@ -1,6 +1,7 @@
-from flask import Flask, request
+from flask import Flask, request, session, render_template, redirect, url_for
 
 app = Flask(__name__)
+app.secret_key = "password123lol"
 
 
 @app.route("/")
@@ -23,7 +24,7 @@ def status():
     return "<h1>secure portal is running </h1> <p>on html except i have to write the html as a string which hurts  </p>"
 
 
-@app.route("/greet")
+@app.route("/hellox")
 def greet():
     name = request.args.get("name", "")
     return f"""
@@ -63,6 +64,31 @@ def events():
     <h2>Event Finder</h2>
     <p>Category: {category}</p>
     <p>View: {view}</p>
+    """
+
+
+@app.route("/remember", methods=["GET", "POST"])
+def remember():
+    if request.method == "POST":
+        username = request.form["username"]
+        session["username"] = username
+        return redirect(url_for("whoami"))
+    return render_template("rememberer.html")
+
+
+@app.route("/whoami")
+def whoami():
+    username = session.get("username")
+
+    if username:
+        return f"""
+        <h2>Current User</h2>
+        <p>{username}</p>
+        """
+
+    return """
+    <h2>Current User</h2>
+    <p>No user remembered.</p>
     """
 
 
