@@ -6,8 +6,74 @@ app.secret_key = "password123lol"
 
 @app.route("/")
 def home():
-    return "<h1>Welcome to SecurePortal</h1>"
+    return render_template("index.html")
 
+
+@app.route("/dashboard")
+def dashboard():
+    username = session.get("username")
+    role = session.get("role")
+
+    if username:
+        return render_template("dashboard/dashboard.html", username=username, role=role)
+    else:
+        return render_template("dashboard/dashboard guest.html")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form["username"]
+        session["username"] = username
+        role = request.form["role"]
+        session["role"] = role
+        return redirect(url_for("dashboard"))
+    return render_template("rememberer.html")
+
+
+@app.route("/forget")
+def forget():
+
+    session.clear()
+
+    return """
+    <h2>Forgotten</h2>
+    <p>The remembered username has been removed from the session.</p>
+    <p><a href="/dashboard">Return to the dashboard</a></p>
+    """
+
+@app.route('/resources')
+def resources():
+    username = session.get("username")
+    role = session.get("role")
+
+    if role == "Student":
+        return render_template("resources/student.html")
+    elif role == "Teacher":
+        return render_template("resources/teacher.html")
+    elif role == "Admin":
+        return render_template("resources/admin.html")
+    else:
+        return "<h1>no role</h1>"
+
+
+@app.route('/users')
+def users():
+    role = session.get("role")
+    if role == "Admin":
+        return """
+        <h1>User Management</h1>
+        <p>Welcome, Administrator.</p>
+        <p>You can manage user accounts and assign roles.</p>"""
+    else:
+        return """
+        <h1>Access Denied</h1>
+        <p>You do not have permission to view this page.</p>
+        """
+
+
+
+# depreciated pages
 
 @app.route("/info")
 def about():
@@ -24,7 +90,7 @@ def status():
     return "<h1>secure portal is running </h1> <p>on html except i have to write the html as a string which hurts  </p>"
 
 
-@app.route("/hellox")
+@app.route("/hello")
 def greet():
     name = request.args.get("name", "")
     return f"""
@@ -65,15 +131,6 @@ def events():
     <p>Category: {category}</p>
     <p>View: {view}</p>
     """
-
-
-@app.route("/remember", methods=["GET", "POST"])
-def remember():
-    if request.method == "POST":
-        username = request.form["username"]
-        session["username"] = username
-        return redirect(url_for("whoami"))
-    return render_template("rememberer.html")
 
 
 @app.route("/whoami")
