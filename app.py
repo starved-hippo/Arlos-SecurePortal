@@ -1,9 +1,11 @@
 from flask import Flask, request, session, render_template, redirect, url_for
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.secret_key = "password123lol"
 
 
+# pages
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -24,28 +26,36 @@ def dashboard():
 def login():
     if request.method == "POST":
         username = request.form["username"]
-        session["username"] = username
-        role = request.form["role"]
-        session["role"] = role
+        password = request.form["password"]
+
+        user = users.get(username)
+        if user and check_password_hash(user["password"], password):
+            session["username"] = username
+            session["role"] = user["role"]
+        else:
+            return f"""<h1>incorrect username or password</h1> <a href="/dashboard">Dashboard</a>"""
+
         return redirect(url_for("dashboard"))
-    return render_template("rememberer.html")
+    return render_template("login.html")
 
 
-@app.route("/forget")
-def forget():
-
+@app.route("/logout")
+def logout():
     session.clear()
-
     return """
-    <h2>Forgotten</h2>
-    <p>The remembered username has been removed from the session.</p>
+    <h2>Logged out</h2>
+    <p>The remembered username and password has been removed from the session.</p>
     <p><a href="/dashboard">Return to the dashboard</a></p>
     """
 
-@app.route('/resources')
+
+# protected routes
+@app.route("/resources")
 def resources():
     username = session.get("username")
     role = session.get("role")
+    if username not in session:
+        return url_for("login")
 
     if role == "Student":
         return render_template("resources/student.html")
@@ -57,8 +67,8 @@ def resources():
         return "<h1>no role</h1>"
 
 
-@app.route('/users')
-def users():
+@app.route("/user_management")
+def user_managment():
     role = session.get("role")
     if role == "Admin":
         return """
@@ -72,9 +82,14 @@ def users():
         """
 
 
+# database
+users = {
+    "amina": {"password": generate_password_hash("Cyber123"), "role": "Student"},
+    "admin": {"password": generate_password_hash("Admin123"), "role": "Administrator"},
+}
+
 
 # depreciated pages
-
 @app.route("/info")
 def about():
     return "<h2>About SecurePortal</h2><p>SecurePortal is being developed as part of CSC2031.</p>"
