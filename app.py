@@ -1,5 +1,6 @@
 from flask import Flask, request, session, render_template, redirect, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
+import sqlite3
 
 app = Flask(__name__)
 app.secret_key = "password123lol"
@@ -22,34 +23,6 @@ def dashboard():
         return render_template("dashboard/dashboard guest.html")
 
 
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
-
-        user = users.get(username)
-        if user and check_password_hash(user["password"], password):
-            session["username"] = username
-            session["role"] = user["role"]
-        else:
-            return f"""<h1>incorrect username or password</h1> <a href="/dashboard">Dashboard</a>"""
-
-        return redirect(url_for("dashboard"))
-    return render_template("login.html")
-
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return """
-    <h2>Logged out</h2>
-    <p>The remembered username and password has been removed from the session.</p>
-    <p><a href="/dashboard">Return to the dashboard</a></p>
-    """
-
-
-# protected routes
 @app.route("/resources")
 def resources():
     username = session.get("username")
@@ -82,86 +55,88 @@ def user_managment():
         """
 
 
-# database
-users = {
-    "amina": {"password": generate_password_hash("Cyber123"), "role": "Student"},
-    "admin": {"password": generate_password_hash("Admin123"), "role": "Administrator"},
-}
-
-
-# depreciated pages
-@app.route("/info")
-def about():
-    return "<h2>About SecurePortal</h2><p>SecurePortal is being developed as part of CSC2031.</p>"
-
-
-@app.route("/talk/<name>")
-def contact(name):
-    return "<h2>Contact Us</h2><p>Email: support@.com</p>"
-
-
-@app.route("/status/")
-def status():
-    return "<h1>secure portal is running </h1> <p>on html except i have to write the html as a string which hurts  </p>"
-
-
-@app.route("/hello")
-def greet():
-    name = request.args.get("name", "")
-    return f"""
-    <h1>Welcome to SecurePortal</h1>
-    <form>
-        <label>what is Your name:</label>
-        <input type="text" name="name">
-        <input type="submit" value="Say Hello">
-    </form>
-    <p>Hello you are{name}!</p>
-    """
-
-
-@app.route("/search")
+@app.route("/search", methods=["GET", "POST"])
 def search():
-    query = request.args.get("q", "")
-    return f"search term: {query}"
+    results = None
+    searched = False
+
+    if request.method == "POST":
+        searched = True
+        username = request.form["username"]
+
+        connection = sqlite3.connect("secureportal.db")
+        cursor = connection.cursor()
+        cursor.execute("SELECT * FROM users WHERE username = ?",(username,))
+
+        results = cursor.fetchall()
+        connection.close()
+        
+        print("form submitted, results: ", results, "searched: ", searched)
+        
+    return render_template("resources/search.html", results=results, searched=searched)
 
 
-@app.route("/welcome")
-def welcome():
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
 
-    name = request.args.get("q", "")
-    if name == "student":
-        return "<h2>Student view selected</h2>"
-    return f"<h2>Welcome {name}</h2>"
+        connection = sqlite3.connect("secureportal.db")
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT username, password_hash, role
+            FROM users
+            WHERE username = ?""",
+            (username,),
+        )
+        # why comma?? pls ask
+
+        user = cursor.fetchone()
+        connection.close()
+
+        if user and check_password_hash(user[1], password):
+            session["username"] = user[0]
+            session["role"] = user[2]
+            return redirect(url_for("dashboard"))
+
+        return f"""<p>incorrect username or password, <a href="/login">retry?</a></p>"""
+    return render_template("users/login.html")
 
 
-@app.route("/events")
-def events():
-
-    category = request.args.get("c", "")
-
-    view = request.args.get("v", "")
-
-    return f"""
-    <h2>Event Finder</h2>
-    <p>Category: {category}</p>
-    <p>View: {view}</p>
-    """
-
-
-@app.route("/whoami")
-def whoami():
-    username = session.get("username")
-
-    if username:
-        return f"""
-        <h2>Current User</h2>
-        <p>{username}</p>
-        """
-
+@app.route("/logout")
+def logout():
+    session.clear()
     return """
-    <h2>Current User</h2>
-    <p>No user remembered.</p>
+    <h2>Logged out</h2>
+    <p>The remembered username and password has been removed from the session.</p>
+    <p><a href="/dashboard">Return to the dashboard</a></p>
     """
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        username = request.form["username"]
+        password_hash = generate_password_hash(request.form["password"])
+
+        connection = sqlite3.connect("secureportal.db")
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+        INSERT INTO users (username, password_hash, role) 
+        VALUES (?, ?, ?)""",
+            (username, password_hash, "Student"),
+        )
+
+        connection.commit()
+        connection.close()
+        return redirect(url_for("dashboard"))
+
+    return render_template("users/register.html")
 
 
 if __name__ == "__main__":
